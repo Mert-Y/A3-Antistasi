@@ -129,6 +129,27 @@ if (loadLastSave) then {
 		};
 	} forEach playableUnits;
 	publicVariable "theBoss";
+
+	private _ruins = missionNamespace getVariable "destroyedBuildings";
+
+	private ["_terrainObject", "_ruinType", "_posWorld", "_vectorWorld"];
+
+	{
+		_terrainObject = _x #0;
+		_ruinType = _x #1;
+		_posWorld = _x #2;
+		_vectorWorld = _x #3;
+
+		hideObjectGlobal _terrainObject;
+		_terrainObject enableSimulationGlobal false;
+
+		_buildObject = _ruinType createVehicle [0, 0, 0];
+		_buildObject setVectorDir _vectorWorld;
+		_buildObject setPosWorld _posWorld;
+
+		_buildObject setVariable ["building", _previousObject];
+
+	} forEach _ruins;
 }
 else {
 	theBoss = objNull;
@@ -168,19 +189,42 @@ addMissionEventHandler ["HandleDisconnect",{_this call A3A_fnc_onPlayerDisconnec
 //PlayerDisconnected doesn't get access to the unit, so we shouldn't use it to handle saving.
 addMissionEventHandler ["PlayerDisconnected",{_this call A3A_fnc_onHeadlessClientDisconnect;false}];
 
-addMissionEventHandler ["BuildingChanged", {
-	params ["_oldBuilding", "_newBuilding", "_isRuin"];
+addMissionEventHandler
+[
+	"BuildingChanged",
+	{
 
-	if (_isRuin) then {
-		_oldBuilding setVariable ["ruins", _newBuilding];
-		_newBuilding setVariable ["building", _oldBuilding];
+		_this spawn
+		{
+			params ["_previousObject", "_newObject", "_isRuin"];
 
-		// Antenna dead/alive status is handled separately
-		if !(_oldBuilding in antennas || _oldBuilding in antennasDead) then {
-			destroyedBuildings pushBack _oldBuilding;
+			if (_isRuin) then
+			{
+				if (_previousObject in antennas) exitWith {};
+				if (_previousObject in antennasDead) exitWith {};
+
+				private _newType = typeOf _newObject;
+				private _newPosW = getPosWorld _newObject;
+				private _vectorDirW = vectorDirVisual _newObject;
+
+				private _ruins = missionNamespace getVariable "destroyedBuildings";
+				_ruins pushBack [_previousObject, _newType, _newPosW, _vectorDirW];
+
+				sleep 30;
+
+				hideObjectGlobal _previousObject;
+				_previousObject setDamage [0, false];
+				_previousObject enableSimulationGlobal false;
+
+				private _buildObject = _newType createVehicle [0, 0, 0];
+				_buildObject setVectorDir _vectorDirW;
+				_buildObject setPosWorld _newPosW;
+
+				_buildObject setVariable ["building", _previousObject];
+			};
 		};
-	};
-}];
+	}
+];
 
 addMissionEventHandler ["EntityKilled", {
 	params ["_victim", "_killer", "_instigator"];
